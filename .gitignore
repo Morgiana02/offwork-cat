@@ -1,0 +1,7 @@
+settings.xml
+**/settings.xml
+*.tmp
+dist/
+work/
+.vs/
+*.pdb
