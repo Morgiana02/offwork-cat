@@ -4,17 +4,7 @@
 
 ## 实机效果
 
-下面是 Windows 实际运行截图；桌宠和菜单仅截取应用自身，不包含其他桌面窗口。
-
-| 桌宠与秒级倒计时 | 奶油色右键菜单 |
-| --- | --- |
-| ![桌宠与秒级倒计时实机截图](docs/images/desktop-countdown.png) | ![奶油色右键菜单实机截图](docs/images/cream-menu.png) |
-
-### 高级排班设置
-
-默认排班示例，可为每一天单独设置上班、午饭、下班时间和休息日。
-
-![高级排班设置默认示例](docs/images/advanced-schedule.png)
+![猫猫等下班实机演示](docs/images/user-demo.gif)
 
 ## 使用
 
