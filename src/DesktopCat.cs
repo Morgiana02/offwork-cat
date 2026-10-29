@@ -11,7 +11,21 @@ using System.Xml.Serialization;
 using System.Threading;
 using System.Collections.Generic;
 using System.Diagnostics;
+using Microsoft.Win32;
 
+public static class AutoStart {
+    const string RunKey="Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+    const string ValueName="OffworkCat";
+    public static string CommandFor(string path){return "\""+path+"\" --startup";}
+    public static bool Enabled(){using(var key=Registry.CurrentUser.OpenSubKey(RunKey))return key!=null&&!String.IsNullOrWhiteSpace(key.GetValue(ValueName) as string);}
+    public static void SetEnabled(bool enabled){
+        using(var key=Registry.CurrentUser.CreateSubKey(RunKey)){
+            if(key==null)throw new IOException("无法保存开机自启动设置。");
+            if(enabled)key.SetValue(ValueName,CommandFor(Application.ExecutablePath),RegistryValueKind.String);
+            else key.DeleteValue(ValueName,false);
+        }
+    }
+}
 public class DayPlan {
     public int Day,Start=510,Lunch=675,End=990;
     public bool Working;
@@ -157,7 +171,7 @@ static class Program {
         if(args.Length==2 && args[0]=="--menu-check")return MenuCheck(args[1]);
         bool first;
         using(var mutex=new Mutex(true,"Local\\OffworkCatNativeV1",out first)) {
-            if(!first){MessageBox.Show("猫猫已经在运行啦。\n可在任务栏右下角托盘中找到它。","猫猫等下班");return 0;}
+            if(!first){if(!args.Contains("--startup"))MessageBox.Show("猫猫已经在运行啦。\n可在任务栏右下角托盘中找到它。","猫猫等下班");return 0;}
             SetProcessDPIAware(); Application.EnableVisualStyles();Application.SetCompatibleTextRenderingDefault(false);
             Application.Run(new CatForm());
         }
@@ -165,6 +179,7 @@ static class Program {
     }
     static int Tests() {
         var s=new CatSettings();int count=0;
+        if(AutoStart.CommandFor("C:\\My Pets\\猫猫.exe")!="\"C:\\My Pets\\猫猫.exe\" --startup")throw new Exception("Quoted startup command");count++;
         Action<string,string,int> check=(time,kind,seconds)=>{var w=WorkState.Get(DateTime.Parse(time),s);if(w.Kind!=kind || (int)w.Remaining.TotalSeconds!=seconds)throw new Exception(time+": "+w.Kind);count++;};
         check("2026-10-22 08:00:00","before",30600);check("2026-10-22 08:30:00","work",28800);check("2026-10-22 16:29:59","work",1);check("2026-10-22 16:30:00","done",0);check("2026-10-24 12:00:00","rest",0);
         foreach(var sample in new[]{new[]{"2026-10-23 09:00:00","距离午饭还有2小时15分0秒"},new[]{"2026-10-23 11:14:59","距离午饭还有0小时0分1秒"},new[]{"2026-10-23 11:15:00","距离下班还有5小时15分0秒"},new[]{"2026-10-23 12:30:00","距离下班还有4小时0分0秒"},new[]{"2026-10-23 16:29:59","距离下班还有0小时0分1秒"},new[]{"2026-10-23 16:30:00","今天已下班啦！"}}){DateTime t=DateTime.Parse(sample[0]);if(WorkState.Countdown(t,s,WorkState.Get(t,s))!=sample[1])throw new Exception(sample[0]);count++;}
@@ -299,6 +314,10 @@ public class CatForm : Form {
         catsMenu.DropDownItems.Add(new ToolStripSeparator());randomCatItem=new ToolStripMenuItem("随机换猫猫（每分钟）");randomCatItem.Click+=(o,e)=>{cfg.RandomCats=!cfg.RandomCats;nextRandomCat=DateTime.Now.AddMinutes(1);if(cfg.RandomCats)RandomCat();RefreshCatChecks();Save();};catsMenu.DropDownItems.Add(randomCatItem);menu.Items.Add(catsMenu);RefreshCatChecks();
         clockItem=new ToolStripMenuItem("显示当前时钟");clockItem.Checked=cfg.Clock;clockItem.Click+=(o,e)=>{cfg.Clock=!cfg.Clock;clockItem.Checked=cfg.Clock;ResizePet();Save();};menu.Items.Add(clockItem);
         topItem=new ToolStripMenuItem("始终置顶");topItem.Checked=cfg.Top;topItem.Click+=(o,e)=>{cfg.Top=!cfg.Top;TopMost=cfg.Top;topItem.Checked=cfg.Top;Save();};menu.Items.Add(topItem);
+        var startupItem=new ToolStripMenuItem("开机自启动");
+        Action refreshStartup=()=>{try{startupItem.Checked=AutoStart.Enabled();startupItem.Enabled=true;}catch{startupItem.Checked=false;startupItem.Enabled=false;}};
+        startupItem.Click+=(o,e)=>{try{AutoStart.SetEnabled(!AutoStart.Enabled());refreshStartup();}catch(Exception error){MessageBox.Show("自启动设置未能保存："+error.Message,"猫猫等下班",MessageBoxButtons.OK,MessageBoxIcon.Information);refreshStartup();}};
+        menu.Items.Add(startupItem);menu.Opening+=(o,e)=>refreshStartup();refreshStartup();
         var sizes=new ToolStripMenuItem("大小");foreach(float scale in new float[]{.75f,1f,1.25f}){float selected=scale;var item=new ToolStripMenuItem(scale==1?"标准 · 210 × 160":""+(int)(scale*100)+"%");item.Click+=(o,e)=>{cfg.Scale=selected;ResizePet();Save();};sizes.DropDownItems.Add(item);}menu.Items.Add(sizes);
         pauseItem=new ToolStripMenuItem("暂停猫猫动画");pauseItem.Click+=(o,e)=>{animate=!animate;pauseItem.Checked=!animate;};menu.Items.Add(pauseItem);
         menu.Items.Add("预览午饭庆祝",null,(o,e)=>Celebrate("lunch"));
